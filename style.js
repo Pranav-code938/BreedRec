@@ -1,7 +1,7 @@
 class CattleBreedScanner {
     constructor() {
         this.model = null;
-        this.modelUrl = 'YOUR_TENSORFLOW_MODEL_URL_HERE'; // Replace with your model URL
+        this.modelUrl = 'https://teachablemachine.withgoogle.com/models/7AHQ0KxaX/';
         this.isModelLoaded = false;
         this.currentImage = null;
         this.stream = null;
@@ -9,7 +9,6 @@ class CattleBreedScanner {
         
         this.initializeElements();
         this.bindEvents();
-        this.loadHistory();
         this.loadModel();
         this.updateHistoryCount();
     }
@@ -49,9 +48,17 @@ class CattleBreedScanner {
     bindEvents() {
         this.takePhotoBtn.addEventListener('click', () => this.startCamera());
         this.uploadBtn.addEventListener('click', () => this.fileInput.click());
-        this.captureBtn.addEventListener('click', () => this.capturePhoto());
-        this.switchCameraBtn.addEventListener('click', () => this.switchCamera());
-        this.closeCameraBtn.addEventListener('click', () => this.stopCamera());
+        
+        if (this.captureBtn) {
+            this.captureBtn.addEventListener('click', () => this.capturePhoto());
+        }
+        if (this.switchCameraBtn) {
+            this.switchCameraBtn.addEventListener('click', () => this.switchCamera());
+        }
+        if (this.closeCameraBtn) {
+            this.closeCameraBtn.addEventListener('click', () => this.stopCamera());
+        }
+        
         this.analyzeBtn.addEventListener('click', () => this.analyzeImage());
         this.historyBtn.addEventListener('click', () => this.showHistory());
         this.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
@@ -59,15 +66,17 @@ class CattleBreedScanner {
 
     async loadModel() {
         try {
-            if (this.modelUrl === 'YOUR_TENSORFLOW_MODEL_URL_HERE') {
-                this.showToast('⚠️ Please configure your TensorFlow.js model URL');
-                return;
-            }
-            
             this.showToast('🤖 Loading AI model...');
-            this.model = await tf.loadLayersModel(this.modelUrl);
+            
+            // Load Teachable Machine model
+            const modelURL = this.modelUrl + 'model.json';
+            const metadataURL = this.modelUrl + 'metadata.json';
+            
+            this.model = await tmImage.load(modelURL, metadataURL);
             this.isModelLoaded = true;
             this.showToast('✅ AI model loaded successfully!');
+            
+            console.log('Model loaded successfully');
         } catch (error) {
             console.error('Error loading model:', error);
             this.showToast('❌ Failed to load AI model');
@@ -86,19 +95,22 @@ class CattleBreedScanner {
             
             this.cameraStream.srcObject = this.stream;
             this.showCameraView();
-            this.showToast('📷 Camera ready');
+            this.showToast('📷 Camera ready - Point at cattle');
         } catch (error) {
             console.error('Camera access denied:', error);
-            this.showToast('❌ Camera access denied');
+            this.showToast('❌ Camera access denied. Please allow camera permission.');
         }
     }
 
     showCameraView() {
-        document.querySelector('.preview-placeholder').style.display = 'none';
-        this.previewImage.style.display = 'none';
-        this.cameraStream.style.display = 'block';
-        this.cameraControls.style.display = 'flex';
-        this.analyzeBtn.style.display = 'none';
+        const placeholder = document.querySelector('.preview-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
+        
+        if (this.previewImage) this.previewImage.style.display = 'none';
+        if (this.cameraStream) this.cameraStream.style.display = 'block';
+        if (this.cameraControls) this.cameraControls.style.display = 'flex';
+        if (this.analyzeBtn) this.analyzeBtn.style.display = 'none';
+        if (this.resultsSection) this.resultsSection.style.display = 'none';
     }
 
     async switchCamera() {
@@ -108,6 +120,8 @@ class CattleBreedScanner {
     }
 
     capturePhoto() {
+        if (!this.cameraStream) return;
+        
         const video = this.cameraStream;
         this.captureCanvas.width = video.videoWidth;
         this.captureCanvas.height = video.videoHeight;
@@ -118,16 +132,25 @@ class CattleBreedScanner {
         this.currentImage = imageDataUrl;
         this.showCapturedImage(imageDataUrl);
         this.stopCamera();
-        this.showToast('📸 Photo captured!');
+        this.showToast('📸 Photo captured! Click Analyze to identify breed.');
+        
+        // Auto-analyze after capture
+        setTimeout(() => this.analyzeImage(), 500);
     }
 
     showCapturedImage(imageDataUrl) {
-        this.previewImage.src = imageDataUrl;
-        this.previewImage.style.display = 'block';
-        this.cameraStream.style.display = 'none';
-        this.cameraControls.style.display = 'none';
-        document.querySelector('.preview-placeholder').style.display = 'none';
-        this.analyzeBtn.style.display = 'block';
+        if (this.previewImage) {
+            this.previewImage.src = imageDataUrl;
+            this.previewImage.style.display = 'block';
+        }
+        
+        if (this.cameraStream) this.cameraStream.style.display = 'none';
+        if (this.cameraControls) this.cameraControls.style.display = 'none';
+        
+        const placeholder = document.querySelector('.preview-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
+        
+        if (this.analyzeBtn) this.analyzeBtn.style.display = 'block';
     }
 
     stopCamera() {
@@ -135,16 +158,16 @@ class CattleBreedScanner {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
         }
-        this.cameraStream.style.display = 'none';
-        this.cameraControls.style.display = 'none';
+        if (this.cameraStream) this.cameraStream.style.display = 'none';
+        if (this.cameraControls) this.cameraControls.style.display = 'none';
     }
 
     handleFileUpload(event) {
         const file = event.target.files[0];
         if (file && file.type.startsWith('image/')) {
-            // Check file size (max 5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                this.showToast('❌ File too large. Please choose an image under 5MB');
+            // Check file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                this.showToast('❌ File too large. Please choose an image under 10MB');
                 return;
             }
 
@@ -153,6 +176,9 @@ class CattleBreedScanner {
                 this.currentImage = e.target.result;
                 this.showCapturedImage(e.target.result);
                 this.showToast('📁 Image uploaded successfully!');
+                
+                // Auto-analyze after upload
+                setTimeout(() => this.analyzeImage(), 500);
             };
             reader.readAsDataURL(file);
         } else {
@@ -167,53 +193,101 @@ class CattleBreedScanner {
         }
 
         if (!this.isModelLoaded) {
-            this.showToast('⏳ AI model not ready yet');
+            this.showToast('⏳ AI model not ready yet. Please wait...');
             return;
         }
 
         this.showLoading(true);
         
         try {
-            // Simulate processing time for better UX
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Mock prediction results (replace with actual model inference)
-            const mockResults = this.getMockPrediction();
+            // Create image element
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
             
-            this.displayResults(mockResults);
-            this.saveToHistory(this.currentImage, mockResults);
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = this.currentImage;
+            });
+
+            console.log('Image loaded, making prediction...');
+
+            // Make prediction using Teachable Machine model
+            const predictions = await this.model.predict(img);
+            console.log('Predictions:', predictions);
+            
+            // Find the highest confidence prediction
+            let topPrediction = predictions[0];
+            for (let i = 1; i < predictions.length; i++) {
+                if (predictions[i].probability > topPrediction.probability) {
+                    topPrediction = predictions[i];
+                }
+            }
+
+            const result = {
+                name: topPrediction.className,
+                confidence: Math.round(topPrediction.probability * 100),
+                description: this.getBreedDescription(topPrediction.className),
+                allPredictions: predictions.map(p => ({
+                    name: p.className,
+                    confidence: Math.round(p.probability * 100)
+                })).sort((a, b) => b.confidence - a.confidence)
+            };
+
+            this.displayResults(result);
+            this.saveToHistory(this.currentImage, result);
             this.updateHistoryCount();
             
         } catch (error) {
             console.error('Error during prediction:', error);
-            this.showToast('❌ Error analyzing image');
+            this.showToast('❌ Error analyzing image. Please try again.');
         } finally {
             this.showLoading(false);
         }
     }
 
-    getMockPrediction() {
-        const breeds = [
-            { name: 'Holstein Friesian', description: 'Large dairy cattle breed', confidence: 87 },
-            { name: 'Jersey', description: 'Small dairy cattle breed', confidence: 12 },
-            { name: 'Angus', description: 'Beef cattle breed', confidence: 1 }
-        ];
+    getBreedDescription(breedName) {
+        const descriptions = {
+            'Holstein': 'Large black and white dairy cattle breed known for high milk production',
+            'Jersey': 'Small dairy cattle breed producing rich, creamy milk',
+            'Angus': 'Black beef cattle breed known for high-quality marbled meat',
+            'Hereford': 'Red and white beef cattle breed, hardy and adaptable',
+            'Brahman': 'Heat-tolerant breed with distinctive hump, originated from India',
+            'Charolais': 'Large white/cream colored beef cattle breed from France',
+            'Simmental': 'Large red and white dual-purpose cattle breed',
+            'Limousin': 'Golden-red beef cattle breed known for lean meat',
+            'Shorthorn': 'Red, white, or roan colored dual-purpose cattle breed',
+            'Gir': 'Indian dairy breed with distinctive curved horns',
+            'Sahiwal': 'Heat-tolerant dairy breed from Pakistan/India region',
+            'Red Sindhi': 'Red-colored dairy breed adapted to tropical climates',
+            'Tharparkar': 'White/gray dual-purpose breed from India',
+            'Kankrej': 'Large draught breed with distinctive lyre-shaped horns'
+        };
         
-        return breeds[Math.floor(Math.random() * breeds.length)];
+        return descriptions[breedName] || 'Cattle breed identification';
     }
 
     displayResults(result) {
-        this.breedName.textContent = result.name;
-        this.breedDescription.textContent = result.description;
-        this.confidenceText.textContent = `${result.confidence}% Confident`;
+        console.log('Displaying results:', result);
+        
+        if (this.breedName) this.breedName.textContent = result.name;
+        if (this.breedDescription) this.breedDescription.textContent = result.description;
+        if (this.confidenceText) this.confidenceText.textContent = `${result.confidence}% Confident`;
         
         // Animate confidence bar
-        setTimeout(() => {
-            this.confidenceFill.style.width = `${result.confidence}%`;
-        }, 100);
+        if (this.confidenceFill) {
+            setTimeout(() => {
+                this.confidenceFill.style.width = `${result.confidence}%`;
+            }, 100);
+        }
 
-        this.resultsSection.style.display = 'block';
-        this.resultsSection.scrollIntoView({ behavior: 'smooth' });
+        // Show top 3 predictions in console for debugging
+        console.log('Top predictions:', result.allPredictions.slice(0, 3));
+
+        if (this.resultsSection) {
+            this.resultsSection.style.display = 'block';
+            this.resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
         
         this.showToast(`🎯 Identified: ${result.name} (${result.confidence}% confidence)`);
     }
@@ -244,52 +318,47 @@ class CattleBreedScanner {
             return;
         }
 
-        // Create history modal (simplified - you might want a full modal component)
-        let historyHtml = '<div style="max-height: 300px; overflow-y: auto;">';
-        history.forEach(item => {
-            const date = new Date(item.timestamp).toLocaleDateString();
-            historyHtml += `
-                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <img src="${item.image}" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600;">${item.breed}</div>
-                        <div style="font-size: 0.875rem; opacity: 0.7;">${item.confidence}% • ${date}</div>
-                    </div>
-                </div>
-            `;
-        });
-        historyHtml += '</div>';
-        
-        // For now, just show a toast with count
+        // Simple history display in console for now
+        console.log('History:', history);
         this.showToast(`📋 You have ${history.length} items in history`);
     }
 
     updateHistoryCount() {
         const history = JSON.parse(localStorage.getItem('cattleHistory') || '[]');
-        this.historyCount.textContent = history.length;
-        this.historyCount.style.display = history.length > 0 ? 'flex' : 'none';
+        if (this.historyCount) {
+            this.historyCount.textContent = history.length;
+            this.historyCount.style.display = history.length > 0 ? 'flex' : 'none';
+        }
     }
 
     showLoading(show) {
-        this.loadingOverlay.style.display = show ? 'flex' : 'none';
+        if (this.loadingOverlay) {
+            this.loadingOverlay.style.display = show ? 'flex' : 'none';
+        }
     }
 
     showToast(message) {
-        this.toast.textContent = message;
-        this.toast.classList.add('show');
-        
-        setTimeout(() => {
-            this.toast.classList.remove('show');
-        }, 3000);
+        if (this.toast) {
+            this.toast.textContent = message;
+            this.toast.classList.add('show');
+            
+            setTimeout(() => {
+                this.toast.classList.remove('show');
+            }, 4000);
+        }
+        console.log('Toast:', message);
     }
 
     resetToInitialState() {
-        document.querySelector('.preview-placeholder').style.display = 'flex';
-        this.previewImage.style.display = 'none';
-        this.cameraStream.style.display = 'none';
-        this.cameraControls.style.display = 'none';
-        this.analyzeBtn.style.display = 'none';
-        this.resultsSection.style.display = 'none';
+        const placeholder = document.querySelector('.preview-placeholder');
+        if (placeholder) placeholder.style.display = 'flex';
+        
+        if (this.previewImage) this.previewImage.style.display = 'none';
+        if (this.cameraStream) this.cameraStream.style.display = 'none';
+        if (this.cameraControls) this.cameraControls.style.display = 'none';
+        if (this.analyzeBtn) this.analyzeBtn.style.display = 'none';
+        if (this.resultsSection) this.resultsSection.style.display = 'none';
+        
         this.currentImage = null;
         this.fileInput.value = '';
     }
@@ -297,6 +366,7 @@ class CattleBreedScanner {
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Initializing Cattle Breed Scanner...');
     window.cattleScanner = new CattleBreedScanner();
 });
 
@@ -307,15 +377,24 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// Add some interactive effects
+// Add touch feedback for buttons
 document.addEventListener('DOMContentLoaded', () => {
-    // Add touch feedback for buttons
     document.querySelectorAll('button, .action-btn').forEach(btn => {
-        btn.addEventListener('touchstart', () => {
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
             btn.style.transform = 'scale(0.95)';
         });
         
-        btn.addEventListener('touchend', () => {
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            setTimeout(() => {
+                btn.style.transform = '';
+            }, 100);
+        });
+
+        btn.addEventListener('click', (e) => {
+            // Add visual feedback for click
+            btn.style.transform = 'scale(0.95)';
             setTimeout(() => {
                 btn.style.transform = '';
             }, 100);
