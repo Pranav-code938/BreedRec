@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cattle Breed Scanner - AI-Powered Identification</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span class="time">14:09</span>
+            </div>
+            <div class="status-right">
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-battery-three-quarters"></i>
+            </div>
+        </div>
+
+        <!-- Header Section -->
+        <header class="app-header">
+            <div class="header-background">
+                <div class="header-pattern"></div>
+            </div>
+            <div class="header-content">
+                <div class="app-icon">
+                    <i class="fas fa-cow"></i>
+                </div>
+                <h1 class="app-title">Cattle Breed Scanner</h1>
+                <p class="app-subtitle">AI-powered breed identification</p>
+                <div class="app-badge">
+                    <i class="fas fa-star"></i>
+                    <span>Bharat Pashudhan App</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Description Card -->
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="info-content">
+                    <h3>For Field Level Workers (FLWs)</h3>
+                    <p>Accurately identify cattle and buffalo breeds using advanced AI technology</p>
+                </div>
+            </div>
+
+            <!-- Camera Preview Section -->
+            <section class="camera-section">
+                <div class="camera-container">
+                    <div id="cameraPreview" class="camera-preview">
+                        <div class="preview-placeholder">
+                            <div class="placeholder-icon">
+                                <i class="fas fa-camera"></i>
+                            </div>
+                            <h3>Ready to Scan</h3>
+                            <p>Take or upload a photo to identify cattle breed</p>
+                        </div>
+                        <img id="previewImage" class="preview-image" style="display: none;" alt="Preview">
+                        <video id="cameraStream" class="camera-stream" autoplay playsinline style="display: none;"></video>
+                        <canvas id="captureCanvas" style="display: none;"></canvas>
+                    </div>
+
+                    <!-- Camera Controls -->
+                    <div id="cameraControls" class="camera-controls" style="display: none;">
+                        <button id="captureBtn" class="control-btn capture-btn">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                        <button id="switchCameraBtn" class="control-btn switch-btn">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button id="closeCameraBtn" class="control-btn close-btn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Action Buttons -->
+            <section class="actions-section">
+                <div class="primary-actions">
+                    <button id="takePhotoBtn" class="action-btn primary-btn">
+                        <div class="btn-icon">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <div class="btn-content">
+                            <span class="btn-title">Take Photo</span>
+                            <span class="btn-subtitle">Use camera to capture</span>
+                        </div>
+                    </button>
+
+                    <button id="uploadBtn" class="action-btn secondary-btn">
+                        <div class="btn-icon">
+                            <i class="fas fa-upload"></i>
+                        </div>
+                        <div class="btn-content">
+                            <span class="btn-title">Upload Image</span>
+                            <span class="btn-subtitle">Choose from gallery</span>
+                        </div>
+                    </button>
+                </div>
+
+                <button id="analyzeBtn" class="analyze-btn" style="display: none;">
+                    <i class="fas fa-search"></i>
+                    <span>Analyze Image</span>
+                    <div class="btn-glow"></div>
+                </button>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="results-section" style="display: none;">
+                <div class="results-header">
+                    <h2>Identification Results</h2>
+                    <div class="confidence-indicator">
+                        <span id="confidenceText">85% Confident</span>
+                        <div class="confidence-bar">
+                            <div id="confidenceFill" class="confidence-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="breedResult" class="breed-result">
+                    <div class="breed-info">
+                        <h3 id="breedName">Holstein Friesian</h3>
+                        <p id="breedDescription">A large dairy cattle breed</p>
+                    </div>
+                    <div class="breed-characteristics">
+                        <div class="characteristic">
+                            <i class="fas fa-weight"></i>
+                            <span>Large Size</span>
+                        </div>
+                        <div class="characteristic">
+                            <i class="fas fa-tint"></i>
+                            <span>High Milk Yield</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Button -->
+            <div class="bottom-actions">
+                <button id="historyBtn" class="history-btn">
+                    <i class="fas fa-history"></i>
+                    <span>View History</span>
+                    <div class="history-count" id="historyCount">3</div>
+                </button>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+            <div class="loading-content">
+                <div class="loading-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                </div>
+                <h3>Analyzing Image...</h3>
+                <p>Our AI is identifying the breed</p>
+            </div>
+        </div>
+
+        <!-- Hidden File Input -->
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="app.js"></script>
+</body>
+</html>
