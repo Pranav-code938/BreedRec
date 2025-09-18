@@ -150,7 +150,7 @@
                 <button id="historyBtn" class="history-btn">
                     <i class="fas fa-history"></i>
                     <span>View History</span>
-                    <div class="history-count" id="historyCount">3</div>
+                    <div class="history-count" id="historyCount">0</div>
                 </button>
             </div>
         </main>
@@ -175,8 +175,9 @@
         <div id="toast" class="toast"></div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <!-- Scripts - FIXED ORDER -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
