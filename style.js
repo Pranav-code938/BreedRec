@@ -1,11 +1,12 @@
+// Global variables for Teachable Machine
+const URL = "https://teachablemachine.withgoogle.com/models/7AHQ0KxaX/";
+let model, webcam, labelContainer, maxPredictions;
+let isWebcamRunning = false;
+
 class CattleBreedScanner {
     constructor() {
-        this.model = null;
-        this.modelUrl = 'https://teachablemachine.withgoogle.com/models/7AHQ0KxaX/';
-        this.isModelLoaded = false;
         this.currentImage = null;
-        this.stream = null;
-        this.facingMode = 'environment';
+        this.isModelLoaded = false;
         
         this.initializeElements();
         this.bindEvents();
@@ -14,152 +15,189 @@ class CattleBreedScanner {
     }
 
     initializeElements() {
-        // Camera elements
-        this.cameraPreview = document.getElementById('cameraPreview');
+        // UI elements
+        this.previewPlaceholder = document.getElementById('preview-placeholder');
+        this.webcamContainer = document.getElementById('webcam-container');
         this.previewImage = document.getElementById('previewImage');
-        this.cameraStream = document.getElementById('cameraStream');
         this.captureCanvas = document.getElementById('captureCanvas');
         this.fileInput = document.getElementById('fileInput');
-        this.cameraControls = document.getElementById('cameraControls');
 
         // Button elements
         this.takePhotoBtn = document.getElementById('takePhotoBtn');
         this.uploadBtn = document.getElementById('uploadBtn');
-        this.captureBtn = document.getElementById('captureBtn');
-        this.switchCameraBtn = document.getElementById('switchCameraBtn');
-        this.closeCameraBtn = document.getElementById('closeCameraBtn');
-        this.analyzeBtn = document.getElementById('analyzeBtn');
+        this.stopCameraBtn = document.getElementById('stopCameraBtn');
         this.historyBtn = document.getElementById('historyBtn');
 
-        // UI elements
+        // Results elements
         this.resultsSection = document.getElementById('resultsSection');
-        this.breedResult = document.getElementById('breedResult');
+        this.staticResultsSection = document.getElementById('staticResultsSection');
         this.breedName = document.getElementById('breedName');
         this.breedDescription = document.getElementById('breedDescription');
         this.confidenceText = document.getElementById('confidenceText');
         this.confidenceFill = document.getElementById('confidenceFill');
+        
+        // Other elements
         this.loadingOverlay = document.getElementById('loadingOverlay');
         this.toast = document.getElementById('toast');
         this.historyCount = document.getElementById('historyCount');
         
+        labelContainer = document.getElementById('label-container');
         this.ctx = this.captureCanvas.getContext('2d');
     }
 
     bindEvents() {
-        this.takePhotoBtn.addEventListener('click', () => this.startCamera());
+        this.takePhotoBtn.addEventListener('click', () => this.startLiveDetection());
         this.uploadBtn.addEventListener('click', () => this.fileInput.click());
-        
-        if (this.captureBtn) {
-            this.captureBtn.addEventListener('click', () => this.capturePhoto());
-        }
-        if (this.switchCameraBtn) {
-            this.switchCameraBtn.addEventListener('click', () => this.switchCamera());
-        }
-        if (this.closeCameraBtn) {
-            this.closeCameraBtn.addEventListener('click', () => this.stopCamera());
-        }
-        
-        this.analyzeBtn.addEventListener('click', () => this.analyzeImage());
+        this.stopCameraBtn.addEventListener('click', () => this.stopLiveDetection());
         this.historyBtn.addEventListener('click', () => this.showHistory());
         this.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
     }
 
     async loadModel() {
         try {
-            this.showToast('🤖 Loading AI model...');
+            this.showLoading(true, 'Loading AI Model...', 'Setting up cattle breed recognition');
             
-            // Load Teachable Machine model
-            const modelURL = this.modelUrl + 'model.json';
-            const metadataURL = this.modelUrl + 'metadata.json';
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
             
-            this.model = await tmImage.load(modelURL, metadataURL);
+            // Load the model and metadata
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+            
             this.isModelLoaded = true;
+            this.showLoading(false);
             this.showToast('✅ AI model loaded successfully!');
             
-            console.log('Model loaded successfully');
+            console.log('Model loaded with', maxPredictions, 'classes');
         } catch (error) {
             console.error('Error loading model:', error);
+            this.showLoading(false);
             this.showToast('❌ Failed to load AI model');
         }
     }
 
-    async startCamera() {
+    async startLiveDetection() {
+        if (!this.isModelLoaded) {
+            this.showToast('⏳ AI model not ready yet. Please wait...');
+            return;
+        }
+
         try {
-            this.stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: this.facingMode,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                } 
-            });
+            this.showLoading(true, 'Starting Camera...', 'Setting up live detection');
             
-            this.cameraStream.srcObject = this.stream;
-            this.showCameraView();
-            this.showToast('📷 Camera ready - Point at cattle');
+            // Setup webcam
+            const flip = true; // whether to flip the webcam
+            webcam = new tmImage.Webcam(300, 300, flip); // width, height, flip
+            await webcam.setup(); // request access to the webcam
+            await webcam.play();
+            
+            // Hide placeholder and show webcam
+            this.previewPlaceholder.style.display = 'none';
+            this.previewImage.style.display = 'none';
+            this.staticResultsSection.style.display = 'none';
+            
+            // Append webcam to container
+            this.webcamContainer.innerHTML = '';
+            this.webcamContainer.appendChild(webcam.canvas);
+            this.webcamContainer.style.display = 'block';
+            
+            // Setup prediction containers
+            labelContainer.innerHTML = '';
+            for (let i = 0; i < maxPredictions; i++) {
+                const div = document.createElement("div");
+                div.className = 'prediction-item';
+                labelContainer.appendChild(div);
+            }
+            
+            // Show results section and controls
+            this.resultsSection.style.display = 'block';
+            this.stopCameraBtn.style.display = 'block';
+            
+            isWebcamRunning = true;
+            this.showLoading(false);
+            this.showToast('📷 Live detection started!');
+            
+            // Start prediction loop
+            this.loop();
+            
         } catch (error) {
-            console.error('Camera access denied:', error);
+            console.error('Error starting camera:', error);
+            this.showLoading(false);
             this.showToast('❌ Camera access denied. Please allow camera permission.');
         }
     }
 
-    showCameraView() {
-        const placeholder = document.querySelector('.preview-placeholder');
-        if (placeholder) placeholder.style.display = 'none';
-        
-        if (this.previewImage) this.previewImage.style.display = 'none';
-        if (this.cameraStream) this.cameraStream.style.display = 'block';
-        if (this.cameraControls) this.cameraControls.style.display = 'flex';
-        if (this.analyzeBtn) this.analyzeBtn.style.display = 'none';
-        if (this.resultsSection) this.resultsSection.style.display = 'none';
+    async loop() {
+        if (isWebcamRunning && webcam) {
+            webcam.update(); // update the webcam frame
+            await this.predict();
+            window.requestAnimationFrame(() => this.loop());
+        }
     }
 
-    async switchCamera() {
-        this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
-        this.stopCamera();
-        await this.startCamera();
+    async predict() {
+        if (!model || !webcam) return;
+        
+        try {
+            // Run prediction
+            const prediction = await model.predict(webcam.canvas);
+            
+            // Sort predictions by probability
+            const sortedPredictions = prediction.sort((a, b) => b.probability - a.probability);
+            
+            // Update UI with top 3 predictions
+            for (let i = 0; i < Math.min(maxPredictions, 3); i++) {
+                if (labelContainer.childNodes[i]) {
+                    const confidence = Math.round(sortedPredictions[i].probability * 100);
+                    const className = sortedPredictions[i].className;
+                    
+                    labelContainer.childNodes[i].innerHTML = `
+                        <div class="prediction-content">
+                            <div class="prediction-info">
+                                <span class="breed-name">${className}</span>
+                                <span class="confidence-percent">${confidence}%</span>
+                            </div>
+                            <div class="prediction-bar">
+                                <div class="prediction-fill" style="width: ${confidence}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Save top prediction if confidence is high
+            if (sortedPredictions[0].probability > 0.7) {
+                const topPrediction = {
+                    name: sortedPredictions[0].className,
+                    confidence: Math.round(sortedPredictions[0].probability * 100),
+                    description: this.getBreedDescription(sortedPredictions[0].className)
+                };
+                
+                // Auto-save high confidence predictions
+                this.autoSaveHighConfidencePrediction(topPrediction);
+            }
+            
+        } catch (error) {
+            console.error('Error during prediction:', error);
+        }
     }
 
-    capturePhoto() {
-        if (!this.cameraStream) return;
+    stopLiveDetection() {
+        isWebcamRunning = false;
         
-        const video = this.cameraStream;
-        this.captureCanvas.width = video.videoWidth;
-        this.captureCanvas.height = video.videoHeight;
-        
-        this.ctx.drawImage(video, 0, 0);
-        const imageDataUrl = this.captureCanvas.toDataURL('image/jpeg', 0.8);
-        
-        this.currentImage = imageDataUrl;
-        this.showCapturedImage(imageDataUrl);
-        this.stopCamera();
-        this.showToast('📸 Photo captured! Click Analyze to identify breed.');
-        
-        // Auto-analyze after capture
-        setTimeout(() => this.analyzeImage(), 500);
-    }
-
-    showCapturedImage(imageDataUrl) {
-        if (this.previewImage) {
-            this.previewImage.src = imageDataUrl;
-            this.previewImage.style.display = 'block';
+        if (webcam) {
+            webcam.stop();
+            webcam = null;
         }
         
-        if (this.cameraStream) this.cameraStream.style.display = 'none';
-        if (this.cameraControls) this.cameraControls.style.display = 'none';
+        // Reset UI
+        this.webcamContainer.style.display = 'none';
+        this.webcamContainer.innerHTML = '';
+        this.resultsSection.style.display = 'none';
+        this.stopCameraBtn.style.display = 'none';
+        this.previewPlaceholder.style.display = 'flex';
         
-        const placeholder = document.querySelector('.preview-placeholder');
-        if (placeholder) placeholder.style.display = 'none';
-        
-        if (this.analyzeBtn) this.analyzeBtn.style.display = 'block';
-    }
-
-    stopCamera() {
-        if (this.stream) {
-            this.stream.getTracks().forEach(track => track.stop());
-            this.stream = null;
-        }
-        if (this.cameraStream) this.cameraStream.style.display = 'none';
-        if (this.cameraControls) this.cameraControls.style.display = 'none';
+        this.showToast('📷 Camera stopped');
     }
 
     handleFileUpload(event) {
@@ -171,14 +209,19 @@ class CattleBreedScanner {
                 return;
             }
 
+            // Stop live detection if running
+            if (isWebcamRunning) {
+                this.stopLiveDetection();
+            }
+
             const reader = new FileReader();
             reader.onload = (e) => {
                 this.currentImage = e.target.result;
-                this.showCapturedImage(e.target.result);
-                this.showToast('📁 Image uploaded successfully!');
+                this.showUploadedImage(e.target.result);
+                this.showToast('📁 Image uploaded! Analyzing...');
                 
-                // Auto-analyze after upload
-                setTimeout(() => this.analyzeImage(), 500);
+                // Auto-analyze uploaded image
+                setTimeout(() => this.analyzeStaticImage(), 500);
             };
             reader.readAsDataURL(file);
         } else {
@@ -186,20 +229,23 @@ class CattleBreedScanner {
         }
     }
 
-    async analyzeImage() {
-        if (!this.currentImage) {
-            this.showToast('❌ No image to analyze');
+    showUploadedImage(imageDataUrl) {
+        this.previewImage.src = imageDataUrl;
+        this.previewImage.style.display = 'block';
+        this.previewPlaceholder.style.display = 'none';
+        this.webcamContainer.style.display = 'none';
+        this.resultsSection.style.display = 'none';
+    }
+
+    async analyzeStaticImage() {
+        if (!this.currentImage || !model) {
+            this.showToast('❌ No image to analyze or model not loaded');
             return;
         }
 
-        if (!this.isModelLoaded) {
-            this.showToast('⏳ AI model not ready yet. Please wait...');
-            return;
-        }
-
-        this.showLoading(true);
-        
         try {
+            this.showLoading(true, 'Analyzing Image...', 'Identifying cattle breed');
+            
             // Create image element
             const img = new Image();
             img.crossOrigin = 'anonymous';
@@ -210,40 +256,48 @@ class CattleBreedScanner {
                 img.src = this.currentImage;
             });
 
-            console.log('Image loaded, making prediction...');
-
-            // Make prediction using Teachable Machine model
-            const predictions = await this.model.predict(img);
-            console.log('Predictions:', predictions);
-            
-            // Find the highest confidence prediction
-            let topPrediction = predictions[0];
-            for (let i = 1; i < predictions.length; i++) {
-                if (predictions[i].probability > topPrediction.probability) {
-                    topPrediction = predictions[i];
-                }
-            }
+            // Make prediction
+            const predictions = await model.predict(img);
+            const sortedPredictions = predictions.sort((a, b) => b.probability - a.probability);
+            const topPrediction = sortedPredictions[0];
 
             const result = {
                 name: topPrediction.className,
                 confidence: Math.round(topPrediction.probability * 100),
-                description: this.getBreedDescription(topPrediction.className),
-                allPredictions: predictions.map(p => ({
-                    name: p.className,
-                    confidence: Math.round(p.probability * 100)
-                })).sort((a, b) => b.confidence - a.confidence)
+                description: this.getBreedDescription(topPrediction.className)
             };
 
-            this.displayResults(result);
+            this.displayStaticResults(result);
             this.saveToHistory(this.currentImage, result);
             this.updateHistoryCount();
             
+            this.showLoading(false);
+            
         } catch (error) {
             console.error('Error during prediction:', error);
-            this.showToast('❌ Error analyzing image. Please try again.');
-        } finally {
             this.showLoading(false);
+            this.showToast('❌ Error analyzing image. Please try again.');
         }
+    }
+
+    displayStaticResults(result) {
+        if (this.breedName) this.breedName.textContent = result.name;
+        if (this.breedDescription) this.breedDescription.textContent = result.description;
+        if (this.confidenceText) this.confidenceText.textContent = `${result.confidence}% Confident`;
+        
+        // Animate confidence bar
+        if (this.confidenceFill) {
+            setTimeout(() => {
+                this.confidenceFill.style.width = `${result.confidence}%`;
+            }, 100);
+        }
+
+        if (this.staticResultsSection) {
+            this.staticResultsSection.style.display = 'block';
+            this.staticResultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        this.showToast(`🎯 Identified: ${result.name} (${result.confidence}% confidence)`);
     }
 
     getBreedDescription(breedName) {
@@ -267,29 +321,26 @@ class CattleBreedScanner {
         return descriptions[breedName] || 'Cattle breed identification';
     }
 
-    displayResults(result) {
-        console.log('Displaying results:', result);
+    autoSaveHighConfidencePrediction(result) {
+        // Only save if we haven't saved this breed recently (prevent spam)
+        const history = JSON.parse(localStorage.getItem('cattleHistory') || '[]');
+        const recentSimilar = history.find(item => 
+            item.breed === result.name && 
+            (Date.now() - new Date(item.timestamp).getTime()) < 30000 // 30 seconds
+        );
         
-        if (this.breedName) this.breedName.textContent = result.name;
-        if (this.breedDescription) this.breedDescription.textContent = result.description;
-        if (this.confidenceText) this.confidenceText.textContent = `${result.confidence}% Confident`;
-        
-        // Animate confidence bar
-        if (this.confidenceFill) {
-            setTimeout(() => {
-                this.confidenceFill.style.width = `${result.confidence}%`;
-            }, 100);
+        if (!recentSimilar && webcam) {
+            // Capture current frame for history
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = webcam.canvas.width;
+            canvas.height = webcam.canvas.height;
+            ctx.drawImage(webcam.canvas, 0, 0);
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            
+            this.saveToHistory(imageDataUrl, result);
+            this.updateHistoryCount();
         }
-
-        // Show top 3 predictions in console for debugging
-        console.log('Top predictions:', result.allPredictions.slice(0, 3));
-
-        if (this.resultsSection) {
-            this.resultsSection.style.display = 'block';
-            this.resultsSection.scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        this.showToast(`🎯 Identified: ${result.name} (${result.confidence}% confidence)`);
     }
 
     saveToHistory(imageDataUrl, result) {
@@ -318,7 +369,7 @@ class CattleBreedScanner {
             return;
         }
 
-        // Simple history display in console for now
+        // Simple history display
         console.log('History:', history);
         this.showToast(`📋 You have ${history.length} items in history`);
     }
@@ -331,9 +382,15 @@ class CattleBreedScanner {
         }
     }
 
-    showLoading(show) {
+    showLoading(show, title = 'Loading...', subtitle = 'Please wait') {
         if (this.loadingOverlay) {
-            this.loadingOverlay.style.display = show ? 'flex' : 'none';
+            if (show) {
+                this.loadingOverlay.querySelector('h3').textContent = title;
+                this.loadingOverlay.querySelector('p').textContent = subtitle;
+                this.loadingOverlay.style.display = 'flex';
+            } else {
+                this.loadingOverlay.style.display = 'none';
+            }
         }
     }
 
@@ -348,20 +405,6 @@ class CattleBreedScanner {
         }
         console.log('Toast:', message);
     }
-
-    resetToInitialState() {
-        const placeholder = document.querySelector('.preview-placeholder');
-        if (placeholder) placeholder.style.display = 'flex';
-        
-        if (this.previewImage) this.previewImage.style.display = 'none';
-        if (this.cameraStream) this.cameraStream.style.display = 'none';
-        if (this.cameraControls) this.cameraControls.style.display = 'none';
-        if (this.analyzeBtn) this.analyzeBtn.style.display = 'none';
-        if (this.resultsSection) this.resultsSection.style.display = 'none';
-        
-        this.currentImage = null;
-        this.fileInput.value = '';
-    }
 }
 
 // Initialize the app
@@ -372,32 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden && window.cattleScanner) {
-        window.cattleScanner.stopCamera();
+    if (document.hidden && isWebcamRunning) {
+        window.cattleScanner.stopLiveDetection();
     }
-});
-
-// Add touch feedback for buttons
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('button, .action-btn').forEach(btn => {
-        btn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            btn.style.transform = 'scale(0.95)';
-        });
-        
-        btn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            setTimeout(() => {
-                btn.style.transform = '';
-            }, 100);
-        });
-
-        btn.addEventListener('click', (e) => {
-            // Add visual feedback for click
-            btn.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                btn.style.transform = '';
-            }, 100);
-        });
-    });
 });
